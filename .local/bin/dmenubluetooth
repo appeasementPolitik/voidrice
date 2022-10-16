@@ -15,7 +15,6 @@
 
 # Constants
 divider='<🔗-⚒>'
-goback='Back'
 
 # Dmenu command to pipe into, can add any options here
 dmenu_command='dmenu -i -p'
@@ -27,17 +26,12 @@ power_on() {
 
 # Toggles power state
 toggle_power() {
-	if power_on; then
-		bluetoothctl power off
-		pkill -RTMIN+2 "${STATUSBAR:-dwmblocks}"
-		show_menu
-	else
-		rfkill list bluetooth | grep -q 'blocked: yes' && rfkill unblock bluetooth && sleep 3
+	power_on &&
+		bluetoothctl power off ||
+		{ rfkill list bluetooth | grep -q 'blocked: yes' && rfkill unblock bluetooth && sleep 3; bluetoothctl power on; }
 
-		bluetoothctl power on
-		pkill -RTMIN+2 "${STATUSBAR:-dwmblocks}"
-		show_menu
-	fi
+	pkill -RTMIN+2 "${STATUSBAR:-dwmblocks}"
+	show_menu
 }
 
 # Checks if controller is scanning for new devices
@@ -50,8 +44,10 @@ scan_on() {
 # Toggles scanning state
 toggle_scan() {
 	scan_on &&
-		pkill -f 'bluetoothctl scan on' && bluetoothctl scan off && show_menu ||
-		{ bluetoothctl scan on & notify-send 'Scanning...' && sleep 5 && show_menu; }
+		pkill -f 'bluetoothctl scan on' && sleep 1 ||
+		{ bluetoothctl scan on & notify-send 'Scanning...' && sleep 5; }
+
+	show_menu
 }
 
 # Checks if controller is able to pair to devices
@@ -64,8 +60,10 @@ pairable_on() {
 # Toggles pairable state
 toggle_pairable() {
 	pairable_on &&
-		bluetoothctl pairable off && show_menu ||
-		{ bluetoothctl pairable on && show_menu; }
+		bluetoothctl pairable off ||
+		bluetoothctl pairable on
+
+	show_menu
 }
 
 # Checks if controller is discoverable by other devices
@@ -78,8 +76,10 @@ discoverable_on() {
 # Toggles discoverable state
 toggle_discoverable() {
 	discoverable_on &&
-		bluetoothctl discoverable off && show_menu ||
-		{ bluetoothctl discoverable on && show_menu; }
+		bluetoothctl discoverable off ||
+		bluetoothctl discoverable on
+
+	show_menu
 }
 
 # Checks if a device is connected
@@ -92,8 +92,11 @@ device_connected() {
 # Toggles device connection
 toggle_connection() {
 	device_connected "$1" &&
-		bluetoothctl disconnect "$1" && device_menu "$device" ||
-		{ bluetoothctl connect "$1" && device_menu "$device"; }
+		bluetoothctl disconnect "$1" ||
+		bluetoothctl connect "$1"
+
+	pkill -RTMIN+2 "${STATUSBAR:-dwmblocks}"
+	device_menu "$device"
 }
 
 # Checks if a device is paired
@@ -108,10 +111,11 @@ device_paired() {
 # Toggles device paired state
 toggle_paired() {
 	device_paired "$1" &&
-		bluetoothctl remove "$1" && device_menu "$device" ||
-		{ bluetoothctl pair "$1" && device_menu "$device"; }
+		bluetoothctl remove "$1" ||
+		bluetoothctl pair "$1"
 
 	pkill -RTMIN+2 "${STATUSBAR:-dwmblocks}"
+	device_menu "$device"
 }
 
 # Checks if a device is trusted
@@ -126,8 +130,10 @@ device_trusted() {
 # Toggles device connection
 toggle_trust() {
 	device_trusted "$1" &&
-		bluetoothctl untrust "$1" && device_menu "$device" ||
-        	{ bluetoothctl trust "$1" && device_menu "$device"; }
+		bluetoothctl untrust "$1" ||
+        	bluetoothctl trust "$1"
+
+	device_menu "$device"
 }
 
 # A submenu for a specific device that allows connecting, pairing, and trusting
@@ -145,7 +151,7 @@ device_menu() {
 
 	paired=$(device_paired "$mac")
     	trusted=$(device_trusted "$mac")
-    	options="${connected}\n${paired}\n${trusted}\n${goback}\nExit"
+    	options="${connected}\n${paired}\n${trusted}\nBack\nExit"
 
     	# Open dmenu, read chosen option
     	chosen="$(printf '%b' "$options" | $dmenu_command "$device_name")"
@@ -158,7 +164,7 @@ device_menu() {
             		toggle_paired "$mac" ;;
         	"$trusted")
             		toggle_trust "$mac" ;;
-        	"$goback")
+        	'Back')
             		show_menu ;;
 		*)
 			exit ;;
