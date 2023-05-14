@@ -9,7 +9,7 @@ case $BLOCK_BUTTON in
 	6) "$TERMINAL" -e "$EDITOR" "$0" ;;
 esac
 
-if bluetoothctl show | grep -q 'Powered: yes'; then
+if timeout 0.1s bluetoothctl show | grep -q 'Powered: yes'; then
 	printf '🔗'
 
         i=0; while IFS= read -r device; do
@@ -17,8 +17,8 @@ if bluetoothctl show | grep -q 'Powered: yes'; then
                 	device_alias=$(bluetoothctl info "$device" | grep 'Alias' | cut -d ' ' -f 2-)
 
                 	[ $i = 0 ] &&
-                    		printf " $device_alias" ||
-		    		printf ', %s' "$device_alias"
+                    		printf " %s" "$device_alias" ||
+							printf ', %s' "$device_alias"
 
                 	i=$((i + 1))
         	fi
